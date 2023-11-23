@@ -3,6 +3,7 @@ package com.example.youtube_philiplackner_pokedex.screen.pokemon_list_screen
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -26,13 +28,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -50,7 +50,6 @@ import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.youtube_philiplackner_pokedex.R
 import com.example.youtube_philiplackner_pokedex.data.model.PokedexListEntry
-import com.example.youtube_philiplackner_pokedex.repository.PokemonRepository
 
 @Composable
 fun PokemonListScreen(
@@ -85,6 +84,9 @@ fun PokemonListScreen(
 
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+            PokedexGrid(navController = navController)
+
         }
     }
 
@@ -98,7 +100,6 @@ fun SearchBar(
 ) {
     var text by remember { mutableStateOf("") }
     var isHintDisplayed by remember { mutableStateOf(hint.isNotEmpty()) }
-    val focusRequester = FocusRequester()
     Box(
         modifier = modifier
     ) {
@@ -179,20 +180,21 @@ fun PokedexEntry(
         Column(
 
         ) {
+
             SubcomposeAsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(pokedexListEntry.imageUrl)
-                    .target {
-                        pokemonListScreenViewModel.calculateDominantColor(it) { color ->
-                            dominantColor = color
-                        }
-                    }
                     .crossfade(true)
                     .build(),
                 contentDescription = pokedexListEntry.pokemonName,
+                onSuccess = {
+                    pokemonListScreenViewModel.calculateDominantColor(it.result.drawable) { color ->
+                        dominantColor = color
+                    }
+                },
                 modifier = Modifier
                     .size(120.dp)
-                    .align(Alignment.CenterHorizontally),
+                    .align(CenterHorizontally),
                 loading = {
                     CircularProgressIndicator(
                         color = MaterialTheme.colorScheme.onPrimary,
@@ -217,18 +219,62 @@ fun PokedexEntry(
 
 @Composable
 fun PokedexGrid(
-    entries : List<PokedexListEntry>,
-    navController: NavController
+    navController: NavController,
+    viewModel: PokemonListScreenViewModel = hiltViewModel()
 ) {
+    viewModel.loadPokemonPaginated()
+
+    val pokemonList by remember { viewModel.pokemonList }
+    val isEndReached by remember { viewModel.isEndReached }
+    val loadError by remember { viewModel.loadError }
+    val isLoading by remember { viewModel.isLoading }
+
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         content = {
-            items(entries.size) {index ->
+            items(pokemonList.size) { index ->
+                //if (index >= pokemonList.size - 1 && !isEndReached) {
                 PokedexEntry(
-                    pokedexListEntry = entries[index],
-                    navController = navController,
+                    pokedexListEntry = pokemonList[index],
+                    navController = navController
                 )
+                //}
             }
-        }
+        },
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     )
+
+//    Box(
+//        contentAlignment = Alignment.Center,
+//        modifier = Modifier.fillMaxSize()
+//    ) {
+//        if (isLoading) {
+//            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+//        }
+//        if (loadError.isNotEmpty()) {
+//            RetrySection(error = loadError) {
+//                viewModel.loadPokemonPaginated()
+//            }
+//        }
+//    }
+
+}
+
+@Composable
+fun RetrySection(
+    error: String,
+    onRetry: () -> Unit
+) {
+    Column {
+        Text(error, color = Color.Red, fontSize = 18.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { onRetry() },
+            modifier = Modifier.align(CenterHorizontally)
+        ) {
+            Text(text = "Retry")
+        }
+    }
 }
